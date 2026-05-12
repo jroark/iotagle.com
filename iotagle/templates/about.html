@@ -25,8 +25,17 @@ to jump straight to a transcoded article.</li>
 negotiate modern TLS.</li>
 <li>No JavaScript, no CSS, no images on this site itself.</li>
 <li>Nothing is logged beyond standard nginx and systemd journal output. We
-don't track visitors and we don't run analytics.</li>
+don't store IP addresses, don't set cookies, and don't run analytics.</li>
 </ul>
+
+<h2>recent visitors</h2>
+<p>
+The <a href="/visitors">visitors page</a> shows the last 100 unique browser
+User-Agent strings to reach iotagle, so the unusual ones stand out. Only the
+User-Agent header is kept &mdash; no IP addresses, no cookies, no per-visit
+detail. Your browser already sends its User-Agent to every site you visit;
+this just makes the list of recent ones public for fun.
+</p>
 <h2>colophon</h2>
 <p>
 Content is not ours. Links point back to the original sources. iotagle is

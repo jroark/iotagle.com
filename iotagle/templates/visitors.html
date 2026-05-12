@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}recent visitors &mdash; iotagle{% endblock %}
+{% block content %}
+<h1>recent visitors</h1>
+<p>
+The last {{ limit }} unique browser User-Agent strings to reach iotagle, most
+recent first. Entries marked <b>[v]</b> match a vintage-browser pattern.
+</p>
+
+{% if not items %}
+<p><i>No visitors recorded yet. Load any page to be the first.</i></p>
+{% else %}
+<table border="0" cellpadding="6" cellspacing="0" width="100%">
+{% for v in items %}
+  <tr><td>
+    {% if v.is_vintage %}<font color="#aa0000"><b>[v]</b></font>&nbsp;{% endif %}
+    <tt>{{ v.ua_html }}</tt>
+    <br>
+    <font size="1">
+      {{ v.hits }} {% if v.hits == 1 %}hit{% else %}hits{% endif %}
+      &middot; first seen {{ v.first_seen|e }}
+      &middot; last seen {{ v.last_seen|e }}
+      {% if v.last_path %}&middot; last path <tt>{{ v.last_path|e }}</tt>{% endif %}
+    </font>
+  </td></tr>
+  {% if not loop.last %}
+  <tr><td><hr noshade size="1"></td></tr>
+  {% endif %}
+{% endfor %}
+</table>
+{% endif %}
+
+<p>
+<font size="1">
+No IP addresses, no cookies, no tracking. Only the User-Agent header is
+retained. See <a href="/about">about</a>.
+</font>
+</p>
+{% endblock %}

@@ -90,6 +90,12 @@ class Config:
     user_agents: tuple[str, ...] = DEFAULT_USER_AGENTS
     reader_user_agent: str = READER_USER_AGENT
 
+    # SQLite path for the recent-visitors log. /var/lib/iotagle is created
+    # in deploy/bootstrap.sh and owned by the iotagle user.
+    visitors_db_path: str = field(
+        default_factory=lambda: _env("IOTAGLE_VISITORS_DB", "/var/lib/iotagle/visitors.db"),
+    )
+
 
 # Module-level singleton. Routes and services import this; tests can monkeypatch
 # attributes when they need a specific value.

@@ -42,6 +42,12 @@ mkdir -p "${APP_DIR}"
 chown ubuntu:"${SERVICE_USER}" "${APP_DIR}"
 chmod 2751 "${APP_DIR}"
 
+echo ">> visitors SQLite directory"
+# /var/lib is root:root mode 0755 by default; the iotagle service user
+# can't create a child there, so we make it once during bootstrap. 0750
+# is fine because no other process needs to read the DB.
+install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0750 /var/lib/iotagle
+
 echo ">> sudoers drop-in for deploys"
 SUDOERS_FILE=/etc/sudoers.d/iotagle-deploy
 cat > "${SUDOERS_FILE}.tmp" <<'EOF'

@@ -16,6 +16,7 @@ A FrogFind-style search engine and reading proxy for vintage low-power computers
 | `/read?url=…` | Reader-mode page proxy |
 | `/image?url=…&mode=color\|gray\|1bit&w=512` | Image proxy / downscaler |
 | `/about` | About page |
+| `/visitors` | Last 100 unique browser User-Agents seen |
 | `/robots.txt` | Disallows `/read`, `/image`, `/search` |
 | `/healthz` | Plain-text `ok` for liveness checks |
 | `/favicon.ico` | 16×16 1-bit ICO |

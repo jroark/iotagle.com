@@ -10,10 +10,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from markupsafe import Markup, escape
 
+from iotagle.config import config
 from iotagle.routes import home, image_proxy, meta, reader, search
+from iotagle.routes import visitors as visitors_route
+from iotagle.services import visitors as visitors_svc
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _STATIC_DIR = _PACKAGE_DIR.parent / "static"
@@ -50,6 +53,7 @@ def create_app() -> Flask:
     # Flask doesn't shout in development, but the value isn't security-critical
     # because we never sign anything.
     app.config.setdefault("SECRET_KEY", "iotagle-not-used-for-signing")
+    app.config.setdefault("VISITORS_DB_PATH", config.visitors_db_path)
 
     app.jinja_env.filters["entity_encode_high"] = _entity_encode_high
 
@@ -58,6 +62,24 @@ def create_app() -> Flask:
     app.register_blueprint(reader.bp)
     app.register_blueprint(image_proxy.bp)
     app.register_blueprint(meta.bp)
+    app.register_blueprint(visitors_route.bp)
+
+    # Paths to skip when recording visitors. /healthz is pure monitor traffic;
+    # /robots.txt and /favicon.ico are usually automated; /static/* is asset
+    # noise. Real human traffic always hits /, /search, /read, /image, /about,
+    # or /visitors, all of which we record.
+    _SKIP_PREFIXES = ("/healthz", "/robots.txt", "/favicon.ico", "/static/")
+
+    @app.before_request
+    def _record_visitor():
+        path = request.path or ""
+        if path.startswith(_SKIP_PREFIXES):
+            return
+        visitors_svc.record(
+            app.config["VISITORS_DB_PATH"],
+            request.user_agent.string,
+            path,
+        )
 
     @app.errorhandler(404)
     def not_found(_e):
