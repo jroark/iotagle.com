@@ -34,10 +34,13 @@ mkdir -p /opt/iotagle
 # Repo owned by ubuntu (who deploys via SSH), group iotagle (service reads).
 # setgid bit on the directory propagates the group to new files.
 chown -R ubuntu:"${SERVICE_USER}" /opt/iotagle
-chmod 2750 /opt/iotagle
+# 2751 (setgid + o+x): nginx (www-data) can *traverse* the directory to
+# reach /opt/iotagle/app/static/ for /robots.txt and /favicon.ico, but
+# can't list the parent's contents. Without o+x, nginx returns 403.
+chmod 2751 /opt/iotagle
 mkdir -p "${APP_DIR}"
 chown ubuntu:"${SERVICE_USER}" "${APP_DIR}"
-chmod 2750 "${APP_DIR}"
+chmod 2751 "${APP_DIR}"
 
 echo ">> sudoers drop-in for deploys"
 SUDOERS_FILE=/etc/sudoers.d/iotagle-deploy
