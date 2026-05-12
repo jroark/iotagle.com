@@ -1,29 +1,14 @@
 [Unit]
 Description=iotagle Flask app
-After=network.target iotagle.socket
-Requires=iotagle.socket
+After=network.target
 
 [Service]
 Type=notify
 User=iotagle
-# Two competing requirements:
-#   (1) chdir into /opt/iotagle/app, which is mode 2750 owned ubuntu:iotagle
-#       → process needs membership in group ``iotagle``.
-#   (2) the unix socket gunicorn creates (/run/iotagle/iotagle.sock, mode 0660)
-#       needs to be readable by nginx (``www-data``)
-#       → the socket's *primary* group must be ``www-data`` because gunicorn
-#         creates the file with its primary group.
-# Solution: primary group ``www-data`` (so the socket is created as
-# iotagle:www-data and nginx can connect) plus supplementary membership in
-# ``iotagle`` (so chdir works).
-Group=www-data
-SupplementaryGroups=iotagle
-RuntimeDirectory=iotagle
-# 0755 so nginx (a different user/group) can traverse the directory to reach
-# the socket. Access control on the socket itself is handled by iotagle.socket
-# (SocketMode=0660, SocketGroup=www-data) — the directory only needs to be
-# walkable.
-RuntimeDirectoryMode=0755
+# The process needs read access to /opt/iotagle/app (mode 2750, owned
+# ubuntu:iotagle) — that requires group membership in ``iotagle``, which it
+# has by default (the user's primary group).
+Group=iotagle
 WorkingDirectory=/opt/iotagle/app
 Environment=PYTHONUNBUFFERED=1
 Environment=IOTAGLE_ENV=prod

@@ -8,7 +8,13 @@ hang surfaces as a clean error instead of a worker kill.
 
 import os
 
-bind = "unix:/run/iotagle/iotagle.sock"
+# 127.0.0.1 TCP rather than a unix socket: when systemd ``RuntimeDirectory``
+# is combined with any namespace-isolation flag (``PrivateTmp``,
+# ``ProtectHome``, ...), the runtime directory becomes namespace-private and
+# files written to it are invisible to processes outside that namespace —
+# including nginx. TCP on the loopback interface sidesteps the issue with no
+# real perf cost.
+bind = "127.0.0.1:8000"
 workers = int(os.environ.get("IOTAGLE_WORKERS", "2"))
 worker_class = "sync"
 threads = 1
@@ -18,10 +24,6 @@ threads = 1
 timeout = 25
 graceful_timeout = 10
 keepalive = 2
-
-# 0o007 lets the www-data group read the socket while keeping it private from
-# everyone else on the box.
-umask = 0o007
 
 # stdout / stderr go to journald via the systemd unit.
 accesslog = "-"
