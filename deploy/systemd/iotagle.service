@@ -6,7 +6,13 @@ Requires=iotagle.socket
 [Service]
 Type=notify
 User=iotagle
-Group=www-data
+# Group needs to be ``iotagle`` so the process can chdir into /opt/iotagle/app
+# (owned ``ubuntu:iotagle`` mode 2750). ``www-data`` is added as a
+# supplementary group so any file the process creates is still readable by
+# nginx; the systemd-managed socket itself uses ``SocketGroup=www-data`` in
+# iotagle.socket and is independent of this setting.
+Group=iotagle
+SupplementaryGroups=www-data
 RuntimeDirectory=iotagle
 RuntimeDirectoryMode=0750
 WorkingDirectory=/opt/iotagle/app
