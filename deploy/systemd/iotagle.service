@@ -6,13 +6,18 @@ Requires=iotagle.socket
 [Service]
 Type=notify
 User=iotagle
-# Group needs to be ``iotagle`` so the process can chdir into /opt/iotagle/app
-# (owned ``ubuntu:iotagle`` mode 2750). ``www-data`` is added as a
-# supplementary group so any file the process creates is still readable by
-# nginx; the systemd-managed socket itself uses ``SocketGroup=www-data`` in
-# iotagle.socket and is independent of this setting.
-Group=iotagle
-SupplementaryGroups=www-data
+# Two competing requirements:
+#   (1) chdir into /opt/iotagle/app, which is mode 2750 owned ubuntu:iotagle
+#       → process needs membership in group ``iotagle``.
+#   (2) the unix socket gunicorn creates (/run/iotagle/iotagle.sock, mode 0660)
+#       needs to be readable by nginx (``www-data``)
+#       → the socket's *primary* group must be ``www-data`` because gunicorn
+#         creates the file with its primary group.
+# Solution: primary group ``www-data`` (so the socket is created as
+# iotagle:www-data and nginx can connect) plus supplementary membership in
+# ``iotagle`` (so chdir works).
+Group=www-data
+SupplementaryGroups=iotagle
 RuntimeDirectory=iotagle
 # 0755 so nginx (a different user/group) can traverse the directory to reach
 # the socket. Access control on the socket itself is handled by iotagle.socket
