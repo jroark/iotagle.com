@@ -30,11 +30,16 @@ don't store IP addresses, don't set cookies, and don't run analytics.</li>
 
 <h2>recent visitors</h2>
 <p>
-The <a href="/visitors">visitors page</a> shows the last 100 unique browser
-User-Agent strings to reach iotagle, so the unusual ones stand out. Only the
-User-Agent header is kept &mdash; no IP addresses, no cookies, no per-visit
-detail. Your browser already sends its User-Agent to every site you visit;
-this just makes the list of recent ones public for fun.
+The <a href="/visitors">visitors page</a> highlights vintage and obscure
+browsers that reach iotagle. Modern browsers (Chrome, Firefox, Safari,
+Edge) and obvious bots / crawlers / HTTP libraries are filtered out and
+never recorded &mdash; the point of the feature is to surface the unusual
+traffic, and current desktop browsers would drown that out.
+</p>
+<p>
+Only the User-Agent header is kept &mdash; no IP addresses, no cookies, no
+per-visit detail. Your browser already sends its User-Agent to every site
+you visit; this just makes the list of recent unusual ones public for fun.
 </p>
 <h2>colophon</h2>
 <p>

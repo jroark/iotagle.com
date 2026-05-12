@@ -3,12 +3,17 @@
 {% block content %}
 <h1>recent visitors</h1>
 <p>
-The last {{ limit }} unique browser User-Agent strings to reach iotagle, most
-recent first. Entries marked <b>[v]</b> match a vintage-browser pattern.
+The last {{ limit }} unique <i>vintage or obscure</i> browser User-Agent
+strings to reach iotagle, most recent first. Modern browsers (Chrome,
+Firefox, Safari, Edge) and bots/crawlers are filtered out so the unusual
+traffic actually shows. Entries marked <b>[v]</b> match a known vintage
+pattern; unmarked ones are <i>obscure</i> &mdash; not modern, not a bot,
+not in our vintage list, but interesting enough to keep.
 </p>
 
 {% if not items %}
-<p><i>No visitors recorded yet. Load any page to be the first.</i></p>
+<p><i>Nothing here yet. Hit any page with a vintage or obscure browser to
+be the first.</i></p>
 {% else %}
 <table border="0" cellpadding="6" cellspacing="0" width="100%">
 {% for v in items %}

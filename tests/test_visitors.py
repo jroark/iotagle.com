@@ -7,7 +7,12 @@ import time
 import pytest
 
 from iotagle.services import visitors
-from iotagle.services.ua_classify import is_vintage
+from iotagle.services.ua_classify import (
+    is_bot,
+    is_interesting,
+    is_modern_browser,
+    is_vintage,
+)
 
 
 @pytest.fixture
@@ -119,6 +124,16 @@ def test_recent_empty_returns_empty_list(db_path):
         "Mozilla/4.0 (compatible; MSIE 4.01; Windows 98)",
         "Mozilla/4.0 (compatible; MSIE 4.0; Windows NT 4)",
         "Mozilla/4.0 (compatible; MSIE 4.01; Windows CE; PPC)",
+        # Obscure / embedded — must match
+        "AtomicNavigator/0.0 (PicoGUI)",
+        "nxweb-be300",
+        "IBrowse/2.4 (AmigaOS 3.9)",
+        "AWeb/3.5 (AmigaOS)",
+        "Voyager/3.4.20 (AmigaOS 4)",
+        "Mozilla/4.0 (compatible; MSIE 4.01; Windows CE; PIE/1.1)",
+        "OmniWeb/v496.55",
+        "Mozilla/5.0 (PLAYSTATION 3 4.55) AppleWebKit/531.22.8 (KHTML, like Gecko)",
+        "WebPositive/1.1 (Haiku)",
     ],
 )
 def test_is_vintage_true(ua):
@@ -143,3 +158,165 @@ def test_is_vintage_true(ua):
 )
 def test_is_vintage_false(ua):
     assert not is_vintage(ua), f"expected NOT vintage: {ua!r}"
+
+
+# ---- is_modern_browser -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        # Desktop Chrome / Firefox / Safari / Edge
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 "
+        "(KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36 OPR/110.0.0.0",
+        # Mobile
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.6367.111 Mobile/15E148",
+        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        # IE 11 / Trident
+        "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)",
+        "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko",
+        # Social in-app
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
+        "[FBAN/FBIOS;FBAV/470.0.0.40.110;FBBV/606116247]",
+    ],
+)
+def test_is_modern_browser_true(ua):
+    assert is_modern_browser(ua), f"expected modern: {ua!r}"
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        "Lynx/2.8.9rel.1 libwww-FM/2.14",
+        "Mozilla/4.04 [en] (Macintosh; I; PPC)",
+        "curl/8.4.0",
+        "Googlebot/2.1 (+http://www.google.com/bot.html)",
+        "AtomicNavigator/0.0 (PicoGUI)",
+        "nxweb-be300",
+        "",
+        None,
+    ],
+)
+def test_is_modern_browser_false(ua):
+    assert not is_modern_browser(ua), f"expected NOT modern: {ua!r}"
+
+
+# ---- is_bot ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        # Search crawlers
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+        "DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)",
+        "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+        "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)",
+        "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)",
+        # AI training / retrieval
+        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; "
+        "+https://openai.com/gptbot)",
+        "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+        "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
+        "CCBot/2.0 (https://commoncrawl.org/faq/)",
+        # HTTP libraries
+        "curl/8.4.0",
+        "Wget/1.21.3",
+        "python-requests/2.32.3",
+        "Go-http-client/1.1",
+        "node-fetch/3.3.2",
+        "okhttp/4.12.0",
+        "axios/1.6.7",
+        "Apache-HttpClient/4.5.13 (Java/17.0.10)",
+        # Monitors
+        "Pingdom.com_bot_version_1.4_(http://www.pingdom.com/)",
+        "Mozilla/5.0 (compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+        "Datadog/Synthetics",
+        # Link previewers
+        "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+        "Twitterbot/1.0",
+        "LinkedInBot/1.0 (compatible; Mozilla/5.0)",
+        "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
+        # Headless / scraping
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) HeadlessChrome/124.0.0.0 Safari/537.36",
+        "Scrapy/2.11.2 (+https://scrapy.org)",
+    ],
+)
+def test_is_bot_true(ua):
+    assert is_bot(ua), f"expected bot: {ua!r}"
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        "Lynx/2.8.9rel.1 libwww-FM/2.14",  # libwww-FM is Lynx, not LWP
+        "Mozilla/4.04 [en] (Macintosh; I; PPC)",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "AtomicNavigator/0.0 (PicoGUI)",
+        "nxweb-be300",
+        "",
+        None,
+    ],
+)
+def test_is_bot_false(ua):
+    assert not is_bot(ua), f"expected NOT bot: {ua!r}"
+
+
+# ---- is_interesting --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        # Vintage browsers — always interesting
+        "Lynx/2.8.9rel.1 libwww-FM/2.14",
+        "Mozilla/4.04 [en] (Macintosh; I; PPC)",
+        "Arachne/1.91;beta;EN",
+        # The two the user pointed out
+        "AtomicNavigator/0.0 (PicoGUI)",
+        "nxweb-be300",
+        # Unknown / weird = obscure = interesting
+        "MyRefrigerator/1.0 (FreeRTOS)",
+        "EmacsW3/4.0pre (X11; U; Linux)",
+        "SomeoneRolledTheirOwnBrowser/0.1",
+    ],
+)
+def test_is_interesting_true(ua):
+    assert is_interesting(ua), f"expected interesting: {ua!r}"
+
+
+@pytest.mark.parametrize(
+    "ua",
+    [
+        # Modern browsers
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 "
+        "Safari/604.1",
+        # Bots
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+        "curl/8.4.0",
+        "python-requests/2.32.3",
+        # Edge case: IE 11 is modern-ish (filtered)
+        "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko",
+        # Empty
+        "",
+        None,
+    ],
+)
+def test_is_interesting_false(ua):
+    assert not is_interesting(ua), f"expected NOT interesting: {ua!r}"

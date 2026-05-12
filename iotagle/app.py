@@ -17,6 +17,7 @@ from iotagle.config import config
 from iotagle.routes import home, image_proxy, meta, reader, search
 from iotagle.routes import visitors as visitors_route
 from iotagle.services import visitors as visitors_svc
+from iotagle.services.ua_classify import is_interesting
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _STATIC_DIR = _PACKAGE_DIR.parent / "static"
@@ -75,9 +76,16 @@ def create_app() -> Flask:
         path = request.path or ""
         if path.startswith(_SKIP_PREFIXES):
             return
+        ua = request.user_agent.string
+        # The /visitors page exists to highlight vintage and obscure traffic;
+        # obviously-modern browsers and bots would drown that out. The
+        # classifier lets vintage UAs through unconditionally and keeps
+        # anything that isn't clearly modern/bot ("unknown ≈ obscure").
+        if not is_interesting(ua):
+            return
         visitors_svc.record(
             app.config["VISITORS_DB_PATH"],
-            request.user_agent.string,
+            ua,
             path,
         )
 
