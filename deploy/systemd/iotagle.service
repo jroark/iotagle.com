@@ -34,9 +34,13 @@ RestartSec=3
 # Hardening: most of the filesystem should be invisible / read-only to the
 # service. The only writable path it needs is the socket directory.
 NoNewPrivileges=yes
-ProtectSystem=strict
+# ``ProtectSystem=full`` makes /usr /etc /boot read-only but leaves /run and
+# /var writable normally. We previously used ``strict`` + ``ReadWritePaths=
+# /run/iotagle``, which caused systemd to bind-mount the runtime directory
+# into the service's mount namespace — gunicorn's socket then existed only
+# inside that namespace and nginx (on the host) saw an empty directory.
+ProtectSystem=full
 ProtectHome=yes
-ReadWritePaths=/run/iotagle
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
