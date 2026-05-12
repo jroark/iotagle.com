@@ -1,0 +1,34 @@
+[Unit]
+Description=iotagle Flask app
+After=network.target iotagle.socket
+Requires=iotagle.socket
+
+[Service]
+Type=notify
+User=iotagle
+Group=www-data
+RuntimeDirectory=iotagle
+RuntimeDirectoryMode=0750
+WorkingDirectory=/opt/iotagle/app
+Environment=PYTHONUNBUFFERED=1
+Environment=IOTAGLE_ENV=prod
+ExecStart=/opt/iotagle/venv/bin/gunicorn -c /opt/iotagle/app/deploy/gunicorn.conf.py wsgi:app
+Restart=on-failure
+RestartSec=3
+
+# Hardening: most of the filesystem should be invisible / read-only to the
+# service. The only writable path it needs is the socket directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/iotagle
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Hard memory cap. On a 512 MB box this leaves room for nginx + journald.
+MemoryMax=350M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+Flask==3.0.3
+gunicorn==22.0.0
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.2.2
+lxml_html_clean==0.1.1
+readability-lxml==0.8.1
+Pillow==10.3.0
+cachetools==5.3.3
+MarkupSafe==2.1.5
+itsdangerous==2.2.0

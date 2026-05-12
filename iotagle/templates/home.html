@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}iotagle &mdash; search for vintage browsers{% endblock %}
+{% block content %}
+<center>
+<br><br>
+<font size="6"><b>iotagle</b></font>
+<br>
+<font size="2">search and reading proxy for vintage computers</font>
+<br><br>
+<form action="/search" method="get">
+  <input type="text" name="q" size="48" maxlength="200">
+  <br><br>
+  <input type="submit" value="Search">
+</form>
+<br>
+<font size="2">
+Try a <tt>w:</tt> prefix to jump straight to Wikipedia, for example
+<a href="/search?q=w%3AApple+II"><tt>w:Apple II</tt></a>.
+</font>
+</center>
+<br>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}iotagle: {{ q|e }}{% endblock %}
+{% block content %}
+{% if not results %}
+<p><b>No results.</b> Try a different query, or use the <tt>w:</tt> prefix to look something up on Wikipedia directly.</p>
+{% else %}
+<table border="0" cellpadding="6" cellspacing="0" width="100%">
+{% for r in results %}
+  <tr><td>
+    <b><a href="/read?url={{ r.url|urlencode }}">{{ r.title|e }}</a></b><br>
+    {{ r.snippet|e }}<br>
+    <font size="1" color="#006600">{{ r.url|e }}</font>
+    &nbsp;&middot;&nbsp;<font size="1">[<a href="{{ r.url|e }}">original</a>]</font>
+  </td></tr>
+{% endfor %}
+</table>
+{% endif %}
+{% endblock %}

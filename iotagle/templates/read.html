@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title|e }} &mdash; iotagle{% endblock %}
+{% block content %}
+<table width="100%" border="0" cellpadding="2" cellspacing="0">
+<tr><td>
+  <font size="1">reader proxy for
+    <a href="{{ page.original_url|e }}">{{ page.original_url|e }}</a></font>
+</td></tr>
+</table>
+<hr noshade size="1">
+{% if page.is_html %}
+<h1>{{ page.title|e }}</h1>
+{{ page.body_html|safe }}
+{% else %}
+<p>
+This page returned <b>{{ page.upstream_content_type|e }}</b>
+({{ page.upstream_size }} bytes). iotagle only transcodes HTML; binary content
+isn't proxied so vintage browsers don't get a file they can't open.
+</p>
+<p>
+<a href="{{ page.original_url|e }}">Open the original</a>
+on a modern machine and download it from there.
+</p>
+{% endif %}
+{% endblock %}

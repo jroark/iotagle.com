@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sample Article — Test Fixture</title>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/style.css">
+<script src="/tracker.js"></script>
+<style>body { color: red; }</style>
+</head>
+<body>
+<header>
+  <nav><a href="/menu">Menu</a></nav>
+</header>
+<article>
+  <h1>Sample Article</h1>
+  <p>This is the opening paragraph that explains <b>what</b> the article is about. Readability uses paragraph length to pick the main content, so this text needs to be long enough to win over the navigation and footer. We add a few more sentences so the algorithm is comfortable with the choice and confidently selects this article element as the primary content.</p>
+  <p>Here is a second paragraph with an inline <a href="https://example.org/related?utm_source=spam&id=42" onclick="evil()">link to a related article</a> and an embedded image: <img src="/images/photo.jpg" alt="A photo" width="640" height="480" srcset="/images/photo@2x.jpg 2x" data-tracking="abc"></p>
+  <p>This third paragraph keeps the article body chunky enough that Readability prefers it over the nav and footer chrome. We also include a <a href="mailto:foo@example.com">contact link</a>, a <a href="javascript:alert(1)">bad link</a>, and a <a href="#section">same-page anchor</a> to verify each path.</p>
+  <p>A fourth paragraph adds more weight so Readability is even more confident. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.</p>
+  <iframe src="https://ads.example.com/ad"></iframe>
+  <form action="/comment"><input name="x"></form>
+</article>
+<footer><a href="/privacy">Privacy</a></footer>
+</body>
+</html>

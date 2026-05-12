@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}about iotagle{% endblock %}
+{% block content %}
+<h1>about iotagle</h1>
+<p>
+<b>iotagle</b> is a search engine and reading proxy for vintage low-power
+computers &mdash; the kind whose browsers predate JavaScript, CSS, and modern
+TLS. It is inspired by Sean Malseed's <a href="http://frogfind.com/">FrogFind</a>.
+</p>
+<h2>how it works</h2>
+<ul>
+<li><b>Search</b> queries are forwarded to <a href="https://duckduckgo.com/">DuckDuckGo</a>
+and the results are reformatted as plain HTML 3.2.</li>
+<li><b>Read</b> pages are fetched and run through a Mozilla Readability port,
+then stripped to bare text and links. Every outbound link routes back through
+this proxy so you stay in a clean reading environment.</li>
+<li><b>Images</b> are downscaled and re-encoded as small JPEGs or GIFs,
+optionally dithered to 1-bit for black-and-white screens.</li>
+<li><b>Wikipedia shortcut</b>: prefix a query with <tt>w:</tt> or <tt>wiki&nbsp;</tt>
+to jump straight to a transcoded article.</li>
+</ul>
+<h2>what we don't do</h2>
+<ul>
+<li>No HTTPS. The whole point is being reachable by browsers that can't
+negotiate modern TLS.</li>
+<li>No JavaScript, no CSS, no images on this site itself.</li>
+<li>Nothing is logged beyond standard nginx and systemd journal output. We
+don't track visitors and we don't run analytics.</li>
+</ul>
+<h2>colophon</h2>
+<p>
+Content is not ours. Links point back to the original sources. iotagle is
+free software running on a single small AWS server.
+</p>
+{% endblock %}

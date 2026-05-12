@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ status }} &mdash; iotagle{% endblock %}
+{% block content %}
+<center>
+<br><br>
+<font size="5"><b>{{ status }}</b></font>
+<br><br>
+<p>{{ message|e }}</p>
+<br>
+<p><a href="/">back to search</a></p>
+</center>
+{% endblock %}

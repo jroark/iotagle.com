@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}search temporarily unavailable &mdash; iotagle{% endblock %}
+{% block content %}
+<h1>search is taking a breather</h1>
+<p>
+iotagle couldn't reach DuckDuckGo just now. This usually clears up within a
+minute. A few things you can still do:
+</p>
+<ul>
+<li>Try again in a moment.</li>
+<li>Look something up on Wikipedia with the <tt>w:</tt> prefix, for example
+    <a href="/search?q=w%3AApple+II"><tt>w:Apple II</tt></a>.</li>
+<li>Read a page directly: <tt>/read?url=&lt;the URL&gt;</tt>.</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,11 @@
+[Unit]
+Description=iotagle gunicorn socket
+
+[Socket]
+ListenStream=/run/iotagle/iotagle.sock
+SocketUser=iotagle
+SocketGroup=www-data
+SocketMode=0660
+
+[Install]
+WantedBy=sockets.target
