@@ -14,7 +14,11 @@ User=iotagle
 Group=iotagle
 SupplementaryGroups=www-data
 RuntimeDirectory=iotagle
-RuntimeDirectoryMode=0750
+# 0755 so nginx (a different user/group) can traverse the directory to reach
+# the socket. Access control on the socket itself is handled by iotagle.socket
+# (SocketMode=0660, SocketGroup=www-data) — the directory only needs to be
+# walkable.
+RuntimeDirectoryMode=0755
 WorkingDirectory=/opt/iotagle/app
 Environment=PYTHONUNBUFFERED=1
 Environment=IOTAGLE_ENV=prod
