@@ -50,10 +50,9 @@ def create_app() -> Flask:
         static_url_path="/static",
     )
 
-    # No flash messages, no signed cookies in v1. Set a deterministic key so
-    # Flask doesn't shout in development, but the value isn't security-critical
-    # because we never sign anything.
-    app.config.setdefault("SECRET_KEY", "iotagle-not-used-for-signing")
+    # No flash messages, no signed cookies in v1. In production this is set to
+    # a random value via IOTAGLE_SECRET_KEY in /etc/iotagle.env (see bootstrap.sh).
+    app.config.setdefault("SECRET_KEY", config.secret_key)
     app.config.setdefault("VISITORS_DB_PATH", config.visitors_db_path)
 
     app.jinja_env.filters["entity_encode_high"] = _entity_encode_high

@@ -80,6 +80,17 @@ ufw --force enable
 echo ">> fail2ban enabled"
 systemctl enable --now fail2ban
 
+echo ">> secrets env file"
+SECRETS_FILE=/etc/iotagle.env
+if [[ ! -f "${SECRETS_FILE}" ]]; then
+    SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    printf 'IOTAGLE_SECRET_KEY=%s\n' "${SECRET_KEY}" > "${SECRETS_FILE}"
+    chmod 0640 "${SECRETS_FILE}"
+    echo "   generated new SECRET_KEY in ${SECRETS_FILE}"
+else
+    echo "   ${SECRETS_FILE} already exists, skipping"
+fi
+
 echo ">> nginx site"
 NGINX_SITE=/etc/nginx/sites-available/iotagle
 if [[ -f "${APP_DIR}/deploy/nginx/iotagle.conf" ]]; then

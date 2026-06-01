@@ -96,6 +96,13 @@ class Config:
         default_factory=lambda: _env("IOTAGLE_VISITORS_DB", "/var/lib/iotagle/visitors.db"),
     )
 
+    # Flask SECRET_KEY. Not used for signing in v1 (no sessions, no flash), but
+    # set to a unique random value in prod via /etc/iotagle.env so the default
+    # fallback never reaches production.
+    secret_key: str = field(
+        default_factory=lambda: _env("IOTAGLE_SECRET_KEY", "iotagle-dev-key-not-for-production"),
+    )
+
 
 # Module-level singleton. Routes and services import this; tests can monkeypatch
 # attributes when they need a specific value.
