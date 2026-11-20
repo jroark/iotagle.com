@@ -17,6 +17,7 @@ implementing the same ``search(query) -> list[Result]`` shape elsewhere.
 
 from __future__ import annotations
 
+import random
 import time
 from dataclasses import dataclass
 from threading import Lock
@@ -64,10 +65,6 @@ def _normalize(query: str) -> str:
 
 
 def _ua() -> str:
-    # Round-robin per call via random pool; importing here avoids a circular
-    # config dependency at module load.
-    import random
-
     return random.choice(config.user_agents)  # noqa: S311
 
 

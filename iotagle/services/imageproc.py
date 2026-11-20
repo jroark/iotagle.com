@@ -28,7 +28,7 @@ from iotagle.services.fetcher import FetchError, safe_get
 
 # Single transparent GIF byte sequence used as the universal fallback.
 TRANSPARENT_GIF_1X1 = bytes.fromhex(
-    "47494638396101000100800000ffffff00000021f90401000000002c00000000" "01000100000202444c003b"
+    "47494638396101000100800000ffffff00000021f90401000000002c0000000001000100000202444c003b"
 )
 
 Mode = Literal["color", "gray", "1bit"]

@@ -35,7 +35,7 @@ def _format_ua(ua: str) -> Markup:
     before we splice in the break tags.
     """
     escaped = str(escape(ua))
-    return Markup(_WBR_BREAKS.sub(r"\1<wbr>", escaped))
+    return Markup(_WBR_BREAKS.sub(r"\1<wbr>", escaped))  # noqa: S704 — escaped above
 
 
 def _relative_time(then_seconds: int, now: int | None = None) -> str:

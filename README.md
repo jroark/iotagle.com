@@ -26,7 +26,7 @@ A FrogFind-style search engine and reading proxy for vintage low-power computers
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install --require-hashes -r requirements-dev.txt
 gunicorn -c deploy/gunicorn.conf.py wsgi:app -b 127.0.0.1:8000
 ```
 
@@ -38,13 +38,26 @@ curl -sS "http://127.0.0.1:8000/search?q=vintage+mac" # results
 lynx http://127.0.0.1:8000/                            # what a vintage user sees
 ```
 
-Tests and lint:
+Tests, lint, and dependency audit:
 
 ```bash
 ruff check .
 ruff format --check .
 pytest -q
+pip-audit -r requirements.txt --require-hashes --disable-pip
 ```
+
+### Dependencies
+
+Direct dependencies live in `requirements.in` / `requirements-dev.in`. The
+`.txt` files are hashed lock files generated from them — don't edit by hand:
+
+```bash
+pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in
+pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements-dev.txt requirements-dev.in
+```
+
+Dependabot opens weekly PRs against the `.in` files and regenerates the locks.
 
 ## Deployment
 

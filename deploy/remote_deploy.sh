@@ -35,7 +35,7 @@ echo ">> checking out $SHA (was $PREV_SHA)"
 git -C "$APP" checkout --quiet --detach "$SHA"
 
 echo ">> syncing deps"
-"$VENV/bin/pip" install --quiet --disable-pip-version-check -r "$APP/requirements.txt"
+"$VENV/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary=:all: -r "$APP/requirements.txt"
 
 echo ">> restart + probe"
 if restart_and_probe; then
@@ -45,7 +45,7 @@ fi
 
 echo ">> health check failed; rolling back to $PREV_SHA"
 git -C "$APP" checkout --quiet --detach "$PREV_SHA"
-"$VENV/bin/pip" install --quiet --disable-pip-version-check -r "$APP/requirements.txt"
+"$VENV/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary=:all: -r "$APP/requirements.txt"
 if restart_and_probe; then
     echo ">> rolled back to $PREV_SHA"
 else

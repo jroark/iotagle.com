@@ -67,7 +67,7 @@ def test_1bit_mode_returns_dithered_gif(monkeypatch):
     img = Image.open(BytesIO(out.body))
     # Convert back to 1-bit to confirm the palette only has two colors.
     bw = img.convert("1")
-    pixels = set(bw.getdata())
+    pixels = set(bw.get_flattened_data())
     assert pixels.issubset({0, 255}), f"expected 1-bit output, got pixels: {pixels}"
 
 

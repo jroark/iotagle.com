@@ -19,7 +19,7 @@ from bs4 import BeautifulSoup
 
 from iotagle.services import transcoder
 from iotagle.services.fetcher import FetchResult
-from iotagle.services.transcoder import TranscodedPage, transcode
+from iotagle.services.transcoder import TranscodedPage, TranscodeError, transcode
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def patch_safe_get(monkeypatch, fixture_text):
         text = fixture_text(name)
         result = FetchResult(
             content=text.encode("utf-8"),
-            content_type=content_type.split(";")[0].strip().lower(),
+            content_type=content_type.split(";", maxsplit=1)[0].strip().lower(),
             final_url=url,
             status_code=200,
         )
@@ -72,9 +72,9 @@ def test_links_rewritten_through_read(patch_safe_get):
     for a in anchors:
         href = a.get("href", "")
         # Either same-page anchor or /read?url=... — nothing else.
-        assert href.startswith("#") or href.startswith(
-            "/read?url="
-        ), f"unexpected href survived: {href!r}"
+        assert href.startswith("#") or href.startswith("/read?url="), (
+            f"unexpected href survived: {href!r}"
+        )
 
 
 def test_images_rewritten_through_image_proxy(patch_safe_get):
@@ -132,8 +132,6 @@ def test_non_html_content_returns_stub(patch_safe_get):
 
 def test_blocked_by_remote_robots(monkeypatch):
     monkeypatch.setattr(transcoder, "_can_fetch", lambda *_a, **_k: False)
-    from iotagle.services.transcoder import TranscodeError
-
     with pytest.raises(TranscodeError) as exc:
         transcode("https://example.com/")
     assert exc.value.status_hint == 403
