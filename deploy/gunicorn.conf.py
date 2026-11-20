@@ -1,9 +1,20 @@
 """Gunicorn configuration for iotagle.
 
-Tuned for a 512 MB Lightsail instance with one CPU. Two sync workers leaves
-headroom for nginx, journald, and the kernel. ``timeout`` must be larger than
-the app's own 13 s worst-case fetch (5 s connect + 8 s read) so an upstream
-hang surfaces as a clean error instead of a worker kill.
+Tuned for a 512 MB Lightsail instance with one CPU. Two processes leave
+headroom for nginx, journald, and the kernel.
+
+Threads: almost all request time is spent waiting on upstream sites (up to
+``config.total_timeout`` = 12 s per fetch). With plain sync workers, two slow
+/read requests would occupy the whole server. ``gthread`` with 4 threads
+per worker gives 8 concurrent requests for little extra memory, because the
+memory-heavy path (image decode) is limited to one at a time per process in
+``iotagle/services/imageproc.py``. Shared in-process state (DDG cache and
+circuit breaker, visitors init set) is already guarded by locks.
+
+``timeout`` must be larger than the app's worst-case fetch (total_timeout
+plus one trailing read_timeout = 20 s) so an upstream hang surfaces as a
+clean error instead of a worker kill. For gthread, ``timeout`` is the
+worker heartbeat; it still kills a process whose threads all hang.
 """
 
 import os
@@ -16,8 +27,8 @@ import os
 # real perf cost.
 bind = "127.0.0.1:8000"
 workers = int(os.environ.get("IOTAGLE_WORKERS", "2"))
-worker_class = "sync"
-threads = 1
+worker_class = "gthread"
+threads = int(os.environ.get("IOTAGLE_THREADS", "4"))
 
 # Longer than the app's max upstream timeout, shorter than nginx's
 # ``proxy_read_timeout 30s``.
@@ -34,3 +45,9 @@ loglevel = "info"
 # Pillow / lxml. 1000 requests/jitter 50 = roughly daily on this traffic.
 max_requests = 1000
 max_requests_jitter = 50
+
+# gunicorn 24+ opens a runtime-control unix socket (``gunicornc``) under the
+# service user's home by default. We don't use it, the home directory is
+# read-only under the systemd sandbox, and it's one more local management
+# surface, so turn it off.
+control_socket_disable = True
