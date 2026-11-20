@@ -7,8 +7,11 @@ Three layered defenses, in order:
    ``allow_redirects=True`` would skip the per-hop check.
 2. A byte cap on the response body — enforced while streaming, so a malicious
    ``Content-Length`` header (or no header at all) can't bypass it.
-3. Connect and read timeouts, totalling under gunicorn's worker timeout. A
-   slow upstream can't tie up a worker indefinitely.
+3. Connect and per-read timeouts, plus an overall wall-clock deadline
+   (``config.total_timeout``) on the whole fetch including redirects and
+   body streaming. ``read_timeout`` alone only bounds the gap *between*
+   chunks, so a server dripping one byte every few seconds could otherwise
+   hold a worker until gunicorn kills it.
 
 The UA is rotated per call from a small pool so a single fingerprint doesn't
 turn into a rate-limit trigger.
@@ -17,6 +20,7 @@ turn into a rate-limit trigger.
 from __future__ import annotations
 
 import random
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import urljoin
@@ -55,14 +59,18 @@ def _pick_user_agent() -> str:
     return random.choice(config.user_agents)  # noqa: S311 — not for crypto
 
 
-def _read_capped(response: Response, max_bytes: int) -> bytes:
-    """Stream the body and abort at ``max_bytes``.
+def _read_capped(response: Response, max_bytes: int, deadline: float) -> bytes:
+    """Stream the body, aborting at ``max_bytes`` or at ``deadline``.
 
     We ignore ``Content-Length`` for the cap check; a malicious server can
-    set it to anything. The actual bytes are what matter.
+    set it to anything. The actual bytes are what matter. ``deadline`` is a
+    :func:`time.monotonic` value checked after every chunk.
     """
     buf = bytearray()
     for chunk in response.iter_content(chunk_size=64 * 1024):
+        if time.monotonic() > deadline:
+            response.close()
+            raise FetchError("upstream timeout", status_hint=504)
         if not chunk:
             continue
         buf.extend(chunk)
@@ -97,9 +105,12 @@ def safe_get(
 
     current_url = url
     timeout = (config.connect_timeout, config.read_timeout)
+    deadline = time.monotonic() + config.total_timeout
 
     # We follow redirects manually so the SSRF guard runs on every hop.
     for _hop in range(config.max_redirects + 1):
+        if time.monotonic() > deadline:
+            raise FetchError("upstream timeout", status_hint=504)
         try:
             validate_url(current_url)
         except UnsafeURLError as e:
@@ -131,7 +142,7 @@ def safe_get(
 
         # Real response — read body, respecting the byte cap.
         try:
-            body = _read_capped(response, max_bytes=max_bytes)
+            body = _read_capped(response, max_bytes=max_bytes, deadline=deadline)
         finally:
             response.close()
 

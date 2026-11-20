@@ -79,10 +79,15 @@ class Config:
         default_factory=lambda: _env_int("IOTAGLE_IMAGE_MAX_BYTES", 5_000_000),
     )
 
-    # Per-request HTTP timeouts (seconds). Sum must stay under gunicorn's
-    # worker timeout (25 s in deploy/gunicorn.conf.py).
+    # Per-request HTTP timeouts (seconds). Worst case for one fetch is
+    # total_timeout + read_timeout (a read that starts just before the
+    # deadline), which must stay under gunicorn's worker timeout (25 s in
+    # deploy/gunicorn.conf.py).
     connect_timeout: float = 5.0
     read_timeout: float = 8.0
+    # Wall-clock cap on one safe_get() call: every redirect hop plus body
+    # streaming. read_timeout only bounds the gap between chunks.
+    total_timeout: float = 12.0
 
     # Max redirects to follow. Each one re-runs the SSRF guard.
     max_redirects: int = 3

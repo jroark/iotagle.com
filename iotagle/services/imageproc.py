@@ -13,10 +13,22 @@ Three output modes:
 
 Failures collapse to a 1×1 transparent GIF so a broken image never breaks
 the page that contains it.
+
+Memory safety (the box has ``MemoryMax=350M`` shared by every worker/thread):
+
+- Only a short allowlist of decoders is reachable (:data:`ALLOWED_FORMATS`).
+  Most historical Pillow CVEs live in exotic formats nobody embeds on the web.
+- JPEGs are opened with :meth:`Image.draft`, so libjpeg decodes directly at
+  1/2–1/8 scale instead of materializing a full-size bitmap.
+- The *post-draft* pixel count is capped at :data:`MAX_DECODE_PIXELS` before
+  any pixel data is decoded.
+- :data:`_DECODE_SLOTS` allows one decode+encode per process at a time, so
+  gthread concurrency can't multiply the peak.
 """
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Literal
@@ -40,6 +52,32 @@ ALLOWED_MODES: frozenset[str] = frozenset({"color", "gray", "1bit"})
 MIN_WIDTH = 16
 MAX_WIDTH = 1024
 DEFAULT_WIDTH = 512
+
+# Decoders we're willing to run on attacker-supplied bytes.
+ALLOWED_FORMATS: tuple[str, ...] = ("JPEG", "PNG", "GIF", "WEBP", "BMP")
+
+# Hard cap on decoded pixels (checked after JPEG draft scaling). 12 MP RGBA is
+# ~48 MB; with one decode slot per worker that keeps the worst case well under
+# the systemd MemoryMax.
+MAX_DECODE_PIXELS = 12_000_000
+
+# Pillow's own header-time bomb check is a backstop only; it raises
+# DecompressionBombError above 2x this value. Set it loosely so a large JPEG
+# can still be opened and draft-scaled below MAX_DECODE_PIXELS.
+Image.MAX_IMAGE_PIXELS = 64_000_000
+
+# One concurrent decode per process. Waiting longer than this returns the
+# fallback rather than queueing indefinitely behind a slow neighbor.
+_DECODE_SLOTS = threading.BoundedSemaphore(1)
+_DECODE_SLOT_WAIT_SECONDS = 10.0
+
+_DECODE_ERRORS = (
+    UnidentifiedImageError,
+    Image.DecompressionBombError,
+    OSError,
+    ValueError,
+    SyntaxError,
+)
 
 
 @dataclass(frozen=True)
@@ -123,14 +161,32 @@ def process(url: str, *, mode: object = "color", width: object = None) -> ImageO
     if result.content_type and not result.content_type.startswith("image/"):
         return _fallback()
 
+    if not _DECODE_SLOTS.acquire(timeout=_DECODE_SLOT_WAIT_SECONDS):
+        return _fallback()
+    try:
+        return _decode_and_encode(result.content, final_mode, target_width)
+    finally:
+        _DECODE_SLOTS.release()
+
+
+def _decode_and_encode(data: bytes, mode: Mode, target_width: int) -> ImageOutput:
     try:
         # ``verify`` makes sure the file isn't truncated, then we reopen
         # because verify leaves the image in a not-usable state.
-        with Image.open(BytesIO(result.content)) as probe:
+        with Image.open(BytesIO(data), formats=ALLOWED_FORMATS) as probe:
             probe.verify()
-        img = Image.open(BytesIO(result.content))
+        img = Image.open(BytesIO(data), formats=ALLOWED_FORMATS)
+        # JPEG only (no-op elsewhere): pick the largest DCT scale that still
+        # leaves the image at least ``target_width`` wide. Must run before
+        # ``load``. A height of 1 means "don't constrain on height".
+        if img.width > target_width:
+            img.draft(None, (target_width, 1))
+        # ``size`` comes from the header (adjusted by draft), so this check
+        # runs before any pixel data is decoded.
+        if img.width * img.height > MAX_DECODE_PIXELS:
+            return _fallback()
         img.load()
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+    except _DECODE_ERRORS:
         return _fallback()
 
     try:
@@ -140,15 +196,17 @@ def process(url: str, *, mode: object = "color", width: object = None) -> ImageO
         # encoder buffer.
         if img.width > target_width:
             img.thumbnail((target_width, target_width * 4), Image.Resampling.LANCZOS)
-        return _encode(img, final_mode)
+        return _encode(img, mode)
     except (OSError, ValueError):
         return _fallback()
 
 
 __all__ = (
+    "ALLOWED_FORMATS",
     "ALLOWED_MODES",
     "DEFAULT_WIDTH",
     "ImageOutput",
+    "MAX_DECODE_PIXELS",
     "MAX_WIDTH",
     "MIN_WIDTH",
     "Mode",

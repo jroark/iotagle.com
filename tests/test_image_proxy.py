@@ -128,3 +128,61 @@ def test_does_not_upscale(monkeypatch):
     img = Image.open(BytesIO(out.body))
     assert img.width == 100
     assert img.height == 80
+
+
+def _jpeg(size, color=(200, 100, 50)) -> bytes:
+    buf = BytesIO()
+    Image.new("RGB", size, color).save(buf, format="JPEG", quality=50)
+    return buf.getvalue()
+
+
+def test_oversized_png_falls_back_without_decoding(monkeypatch):
+    """A PNG over MAX_DECODE_PIXELS is rejected from its header alone."""
+    # 4000x4000 = 16 MP > 12 MP cap. Single-color PNG compresses to a few KB,
+    # which is exactly the decompression-bomb shape.
+    data = _png((4000, 4000), color=(0, 0, 0))
+    assert len(data) < 200_000
+    _patch_fetch(monkeypatch, data)
+
+    def _no_load(self):  # pragma: no cover — must not be reached
+        raise AssertionError("pixel data decoded for an oversized image")
+
+    monkeypatch.setattr(Image.Image, "load", _no_load)
+    out = process("https://example.com/i.png")
+    assert out.body == TRANSPARENT_GIF_1X1
+
+
+def test_pillow_bomb_error_falls_back(monkeypatch):
+    """Pillow's DecompressionBombError subclasses Exception, not OSError."""
+    _patch_fetch(monkeypatch, _png((64, 64)))
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 100)  # 64*64 > 2*100
+    out = process("https://example.com/i.png")
+    assert out.body == TRANSPARENT_GIF_1X1
+
+
+def test_large_jpeg_is_draft_scaled_and_accepted(monkeypatch):
+    """A JPEG over the pixel cap still works: draft() shrinks it before decode."""
+    _patch_fetch(monkeypatch, _jpeg((4800, 3600)), content_type="image/jpeg")  # 17 MP
+    out = process("https://example.com/i.jpg", mode="color", width=512)
+    assert out.content_type == "image/jpeg"
+    img = Image.open(BytesIO(out.body))
+    assert img.width == 512
+
+
+def test_disallowed_format_falls_back(monkeypatch):
+    buf = BytesIO()
+    Image.new("RGB", (32, 32)).save(buf, format="TIFF")
+    _patch_fetch(monkeypatch, buf.getvalue(), content_type="image/tiff")
+    out = process("https://example.com/i.tiff")
+    assert out.body == TRANSPARENT_GIF_1X1
+
+
+def test_decode_slot_busy_falls_back(monkeypatch):
+    _patch_fetch(monkeypatch, _png((64, 64)))
+    monkeypatch.setattr(imageproc, "_DECODE_SLOT_WAIT_SECONDS", 0.01)
+    assert imageproc._DECODE_SLOTS.acquire(timeout=1)
+    try:
+        out = process("https://example.com/i.png")
+    finally:
+        imageproc._DECODE_SLOTS.release()
+    assert out.body == TRANSPARENT_GIF_1X1

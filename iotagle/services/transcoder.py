@@ -3,7 +3,14 @@
 Given an upstream URL, fetch the page, run it through Readability to isolate
 the article body, then strip everything a 1995 browser doesn't understand:
 
-- All scripts, styles, iframes, forms, media tags, SVG, canvas.
+- All scripts, styles, iframes, forms, media tags, SVG, canvas (removed
+  with their content).
+- All comments, CDATA, processing instructions and doctypes. Vintage IE
+  executes ``<!--[if IE]>…<![endif]-->`` conditional comments, so a comment
+  is not inert for our audience.
+- Every other tag not on an HTML 3.2-era allowlist is unwrapped (its text
+  survives, the tag doesn't). HTML5 sectioning tags become ``<div>`` so
+  block breaks survive.
 - All attributes except a short per-tag allowlist (``href``, ``src``,
   ``alt``, ``width``, ``height``, ``colspan``, ``rowspan``).
 - All outbound URLs are rewritten back through ``/read`` (for anchors) or
@@ -20,6 +27,7 @@ from urllib import robotparser
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup, Tag
+from bs4.element import CData, Comment, Declaration, Doctype, ProcessingInstruction
 from readability import Document  # provided by readability-lxml
 
 from iotagle.config import config
@@ -58,8 +66,43 @@ _STRIP_TAGS = frozenset(
         "base",
         "template",
         "slot",
+        "head",
+        "title",
+        "math",
+        "dialog",
+        "portal",
+        "xml",
+        "plaintext",
+        "xmp",
+        "listing",
+        "isindex",
     }
 )
+
+# Tags that may appear in output. Anything else is unwrapped. This is an
+# allowlist on purpose: a denylist has to anticipate every tag some browser
+# from 1994-2026 ever gave behavior to (``<layer src>``, ``<bgsound>``, ...).
+_TAG_ALLOW = frozenset(
+    {
+        "a", "abbr", "address", "b", "big", "blockquote", "br", "caption", "center",
+        "cite", "code", "dd", "dfn", "div", "dl", "dt", "em", "font", "h1", "h2", "h3",
+        "h4", "h5", "h6", "hr", "i", "img", "kbd", "li", "ol", "p", "pre", "q", "s",
+        "samp", "small", "strike", "strong", "sub", "sup", "table", "tbody", "td",
+        "tfoot", "th", "thead", "tr", "tt", "u", "ul", "var",
+    }
+)  # fmt: skip
+
+# HTML5 block containers renamed to <div> rather than unwrapped, so adjacent
+# sections don't run together into one paragraph.
+_TAG_TO_DIV = frozenset(
+    {
+        "article", "aside", "details", "figcaption", "figure", "footer", "header",
+        "main", "nav", "section", "summary", "hgroup",
+    }
+)  # fmt: skip
+
+# Non-element nodes that are never emitted.
+_STRIP_NODE_TYPES = (Comment, CData, ProcessingInstruction, Declaration, Doctype)
 
 # Per-tag attribute allowlist. Everything else gets dropped.
 _ATTR_ALLOW: dict[str, frozenset[str]] = {
@@ -201,18 +244,29 @@ def _scrub_attributes(tag: Tag) -> None:
             del tag.attrs[attr]
 
 
-def _clean(soup: BeautifulSoup, base_url: str) -> None:
+def _clean(soup: BeautifulSoup, base_url: str) -> None:  # noqa: PLR0912 — one branch per tag class
     """Mutate ``soup`` in place: drop disallowed tags, scrub attributes, rewrite URLs."""
-    # 1. Strip dangerous tags entirely.
+    # 1. Comments, CDATA, doctypes, PIs — including IE conditional comments.
+    for node in soup.find_all(string=lambda t: isinstance(t, _STRIP_NODE_TYPES)):
+        node.extract()
+
+    # 2. Strip dangerous tags entirely, content and all.
     for tag_name in _STRIP_TAGS:
         for el in soup.find_all(tag_name):
             el.decompose()
 
-    # 2. Walk every tag once for attribute scrubbing + URL rewriting.
+    # 3. Walk every tag once: enforce the tag allowlist, scrub attributes,
+    # rewrite URLs.
     for el in list(soup.find_all(True)):
         # Some elements may have been removed already as a descendant of a
         # stripped parent — skip if detached.
         if el.parent is None and el is not soup:
+            continue
+
+        if el.name in _TAG_TO_DIV:
+            el.name = "div"
+        if el.name not in _TAG_ALLOW:
+            el.unwrap()
             continue
 
         if el.name == "a":
