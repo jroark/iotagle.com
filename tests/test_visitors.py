@@ -91,6 +91,25 @@ def test_record_swallows_errors_when_db_dir_unwritable(tmp_path):
         ro.chmod(0o700)
 
 
+def test_table_is_pruned_to_max_rows(db_path, monkeypatch):
+    """Spamming unique UAs can't grow the table without bound."""
+    monkeypatch.setattr(visitors, "MAX_ROWS", 5)
+    monkeypatch.setattr(visitors, "PRUNE_EVERY", 1)  # prune on every write
+    for i in range(20):
+        visitors.record(db_path, f"spam-{i}", "/")
+    out = visitors.recent(db_path, limit=100)
+    assert [r.ua for r in out] == [f"spam-{i}" for i in range(19, 14, -1)]
+
+
+def test_prune_is_probabilistic(db_path, monkeypatch):
+    """With the default PRUNE_EVERY the table may briefly exceed MAX_ROWS."""
+    monkeypatch.setattr(visitors, "MAX_ROWS", 5)
+    monkeypatch.setattr(visitors.random, "randrange", lambda _n: 1)  # never prune
+    for i in range(10):
+        visitors.record(db_path, f"ua-{i}", "/")
+    assert len(visitors.recent(db_path, limit=100)) == 10
+
+
 def test_recent_empty_returns_empty_list(db_path):
     assert visitors.recent(db_path) == []
     assert visitors.recent(db_path, limit=0) == []

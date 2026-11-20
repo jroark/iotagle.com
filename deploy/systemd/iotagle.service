@@ -5,33 +5,76 @@ After=network.target
 [Service]
 Type=notify
 User=iotagle
-# The process needs read access to /opt/iotagle/app (mode 2750, owned
-# ubuntu:iotagle) — that requires group membership in ``iotagle``, which it
-# has by default (the user's primary group).
+# The process needs read access to /opt/iotagle/app (mode 2751, owned
+# deploy:iotagle) — that comes from group membership in ``iotagle``, the
+# service user's primary group.
 Group=iotagle
 WorkingDirectory=/opt/iotagle/app
 Environment=PYTHONUNBUFFERED=1
+# The code tree is read-only to this service; don't even try to write .pyc.
+Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=IOTAGLE_ENV=prod
 ExecStart=/opt/iotagle/venv/bin/gunicorn -c /opt/iotagle/app/deploy/gunicorn.conf.py wsgi:app
 Restart=on-failure
 RestartSec=3
 
-# Hardening: most of the filesystem should be invisible / read-only to the
-# service. The only writable path it needs is the socket directory.
-NoNewPrivileges=yes
-# ``ProtectSystem=full`` makes /usr /etc /boot read-only but leaves /run and
-# /var writable normally. We previously used ``strict`` + ``ReadWritePaths=
-# /run/iotagle``, which caused systemd to bind-mount the runtime directory
-# into the service's mount namespace — gunicorn's socket then existed only
-# inside that namespace and nginx (on the host) saw an empty directory.
-ProtectSystem=full
+# --- Filesystem -------------------------------------------------------------
+# The whole filesystem is read-only except /var/lib/iotagle (visitors.db),
+# which systemd creates and chowns to User= via StateDirectory=.
+# (``strict`` previously broke the unix socket to nginx; we now use
+# 127.0.0.1 TCP, so it's safe. See deploy/gunicorn.conf.py.)
+ProtectSystem=strict
+StateDirectory=iotagle
+StateDirectoryMode=0750
 ProtectHome=yes
 PrivateTmp=yes
-ProtectKernelTunables=yes
-ProtectControlGroups=yes
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+PrivateDevices=yes
+UMask=0027
 
-# Hard memory cap. On a 512 MB box this leaves room for nginx + journald.
+# --- Kernel / process isolation ---------------------------------------------
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+PrivateIPC=yes
+RemoveIPC=yes
+KeyringMode=private
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# CPython (no JIT), lxml and Pillow don't need W+X pages. If a future
+# dependency does, the service will fail at startup; drop this line then.
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+
+# --- Network ----------------------------------------------------------------
+# AF_UNIX is needed for journald and sd_notify.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Kernel-level SSRF backstop. iotagle/security/ssrf.py validates every URL,
+# but `requests` re-resolves DNS at connect time, so a rebinding resolver
+# could still swap in a private address. These eBPF filters drop such
+# packets regardless of what the app decides:
+#   - link-local covers 169.254.169.254 (instance metadata, IMDS)
+#   - the RFC1918 / CGNAT ranges cover the Lightsail VPC
+# localhost stays allowed: nginx reaches gunicorn on 127.0.0.1:8000 and DNS
+# goes through the systemd-resolved stub at 127.0.0.53. An IPAddressAllow
+# match wins over IPAddressDeny.
+IPAddressAllow=localhost
+IPAddressDeny=link-local multicast 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 172.16.0.0/12 192.168.0.0/16 fc00::/7
+
+# Hard memory cap. On the 1 GB micro bundle this leaves ample room for nginx,
+# journald and unattended-upgrades; the app normally sits around 100 MB.
 MemoryMax=350M
 
 [Install]

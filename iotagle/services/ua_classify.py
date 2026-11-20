@@ -201,9 +201,7 @@ def is_interesting(ua: str | None) -> bool:
         return True
     if is_modern_browser(ua):
         return False
-    if is_bot(ua):
-        return False
-    return True
+    return not is_bot(ua)
 
 
 __all__ = ("is_bot", "is_interesting", "is_modern_browser", "is_vintage")

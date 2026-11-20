@@ -21,6 +21,7 @@ an error template.
 from __future__ import annotations
 
 import logging
+import random
 import sqlite3
 import threading
 import time
@@ -36,6 +37,14 @@ logger = logging.getLogger(__name__)
 # /visitors page renderable on small screens.
 MAX_UA_LENGTH = 512
 MAX_PATH_LENGTH = 256
+
+# The table keeps one row per unique UA, and "unknown" UAs are deliberately
+# recorded, so anyone can mint new rows by varying their User-Agent. Bound
+# the table to the MAX_ROWS most recently seen UAs. Pruning runs on roughly
+# 1 in PRUNE_EVERY writes to keep it off the hot path; between prunes the
+# table can briefly exceed MAX_ROWS by about PRUNE_EVERY rows.
+MAX_ROWS = 2000
+PRUNE_EVERY = 50
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS visitors (
@@ -65,6 +74,13 @@ SELECT ua, first_seen_ns, last_seen_ns, hits, last_path
 FROM visitors
 ORDER BY last_seen_ns DESC, rowid DESC
 LIMIT ?
+"""
+
+_PRUNE = """
+DELETE FROM visitors
+WHERE rowid NOT IN (
+    SELECT rowid FROM visitors ORDER BY last_seen_ns DESC, rowid DESC LIMIT ?
+)
 """
 
 # One initializer per DB path. Without this, every call to record() would
@@ -133,6 +149,8 @@ def record(db_path: str, ua: str | None, path: str | None) -> None:
     try:
         with _connect(db_path) as conn:
             conn.execute(_UPSERT, (ua, now_ns, now_ns, path))
+            if random.randrange(PRUNE_EVERY) == 0:  # noqa: S311 — not for crypto
+                conn.execute(_PRUNE, (MAX_ROWS,))
     except Exception:  # noqa: BLE001 — visitor tracking must never break a request
         logger.exception("visitors.record failed")
 
@@ -170,6 +188,7 @@ def reset_for_tests(db_path: str) -> None:
 
 __all__ = (
     "MAX_PATH_LENGTH",
+    "MAX_ROWS",
     "MAX_UA_LENGTH",
     "VisitorEntry",
     "recent",

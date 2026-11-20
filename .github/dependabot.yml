@@ -1,0 +1,27 @@
+# Weekly dependency PRs. CI (including pip-audit) runs on each one; merging
+# to main deploys.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Dependabot edits requirements*.in and regenerates the hashed
+    # requirements*.txt with pip-compile.
+    groups:
+      runtime:
+        patterns: ['*']
+        exclude-patterns: [pytest*, responses, ruff, pip-tools, pip-audit]
+      dev-tools:
+        patterns: [pytest*, responses, ruff, pip-tools, pip-audit]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']

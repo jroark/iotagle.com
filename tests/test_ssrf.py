@@ -6,6 +6,8 @@ regression won't quietly turn into a private-network reach.
 
 from __future__ import annotations
 
+import socket as _socket
+
 import pytest
 
 from iotagle.security.ssrf import (
@@ -192,8 +194,6 @@ def test_dns_dual_stack_with_one_private_blocked(monkeypatch):
 
 
 def test_dns_failure_rejected_without_leaking(monkeypatch):
-    import socket as _socket
-
     def _boom(*_a, **_k):
         raise _socket.gaierror("nope")
 

@@ -13,9 +13,14 @@ The guard enforces three things, in order:
 
 There is a residual DNS TOCTOU gap: ``requests`` resolves the hostname again
 when it makes the request, so a malicious resolver could return a public IP
-the first time and a private IP the second. Closing the gap requires pinning
-the validated IP into a custom ``HTTPAdapter``. Deferred to v2; documented in
-the plan's Risks section.
+the first time and a private IP the second. In production that gap is closed
+below the app: ``deploy/systemd/iotagle.service`` sets ``IPAddressDeny=`` for
+link-local (IMDS), RFC1918, CGNAT and ULA ranges, so the kernel drops those
+packets whatever the app resolves. The instance also requires IMDSv2, which
+needs a PUT that this fetcher never sends. Loopback is the one blocked range
+the kernel filter can't cover (nginx and DNS need it); the only listeners
+there are nginx and gunicorn themselves. Pinning the validated IP into a
+custom ``HTTPAdapter`` would close it at the app layer too.
 """
 
 from __future__ import annotations

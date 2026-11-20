@@ -24,9 +24,9 @@ A FrogFind-style search engine and reading proxy for vintage low-power computers
 ## Local development
 
 ```bash
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-dev.txt
+pip install --require-hashes -r requirements-dev.txt
 gunicorn -c deploy/gunicorn.conf.py wsgi:app -b 127.0.0.1:8000
 ```
 
@@ -38,17 +38,43 @@ curl -sS "http://127.0.0.1:8000/search?q=vintage+mac" # results
 lynx http://127.0.0.1:8000/                            # what a vintage user sees
 ```
 
-Tests and lint:
+Tests, lint, and dependency audit:
 
 ```bash
 ruff check .
 ruff format --check .
 pytest -q
+pip-audit -r requirements.txt --require-hashes --disable-pip
 ```
+
+### Dependencies
+
+Direct dependencies live in `requirements.in` / `requirements-dev.in`. The
+`.txt` files are hashed lock files generated from them — don't edit by hand:
+
+```bash
+pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in
+pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements-dev.txt requirements-dev.in
+```
+
+Dependabot opens weekly PRs against the `.in` files and regenerates the locks.
 
 ## Deployment
 
-Deploys to a single AWS Lightsail Ubuntu VM via GitHub Actions on push to `main`. See [deploy/](deploy/) for nginx, systemd, gunicorn, and bootstrap configuration. See [deploy/ROLLBACK.md](deploy/ROLLBACK.md) for rollback steps.
+Deploys to a single AWS Lightsail Ubuntu VM via GitHub Actions on push to `main`, once `lint`, `test` and `audit` pass. See [deploy/](deploy/) for nginx, systemd, gunicorn, and bootstrap configuration, and [deploy/ROLLBACK.md](deploy/ROLLBACK.md) for rollback steps.
+
+| Account | Purpose |
+|---------|---------|
+| `ubuntu` | Admin. Full sudo; personal SSH key only. Never used by CI. |
+| `deploy` | CI deploys. Owns `/opt/iotagle/{app,venv}`. Its only SSH key is pinned by a forced command to `/usr/local/sbin/iotagle-deploy` ([source](deploy/iotagle-deploy)), which deploys only SHAs already on `origin/main`. Sudo is limited to restarting/probing `iotagle.service`. |
+| `iotagle` | Runs gunicorn inside a strict systemd sandbox. Read-only code; writes only `/var/lib/iotagle`. |
+
+`deploy/bootstrap.sh` is idempotent and provisions everything (packages, users, sshd, ufw, fail2ban, unattended security upgrades with 09:00 UTC auto-reboot, nginx, systemd). Changes to `deploy/iotagle-deploy`, nginx or the systemd unit reach the box only when an admin re-runs it:
+
+```bash
+ssh ubuntu@iotagle.com
+cd /opt/iotagle/app && sudo ./deploy/bootstrap.sh            # add --deploy-pubkey FILE to rotate the CI key
+```
 
 ## Design constraints
 

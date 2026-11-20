@@ -1,13 +1,16 @@
-# Deploy: SSH into Lightsail, check out the target SHA, restart the service.
+# Deploy: SSH to the Lightsail box as the restricted `deploy` user. Its key
+# is pinned to /usr/local/sbin/iotagle-deploy (deploy/iotagle-deploy) by a
+# forced command, so the only thing this workflow can do on the box is
+# deploy a commit that is already on origin/main.
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
+# Secrets (in the "production" environment, limited to the main branch):
 #   LIGHTSAIL_HOST         iotagle.com (or the static IP)
-#   LIGHTSAIL_USER         ubuntu
-#   LIGHTSAIL_SSH_KEY      contents of the iotagle_deploy private key
-#   LIGHTSAIL_KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <host>`
-#
-# Optional environment gate: set up a "production" GitHub environment with
-# required reviewers to require manual approval on every deploy.
+#   LIGHTSAIL_USER         deploy
+#   LIGHTSAIL_SSH_KEY      private half of the deploy key (ed25519). The
+#                          public half is installed by
+#                          `bootstrap.sh --deploy-pubkey`.
+#   LIGHTSAIL_KNOWN_HOSTS  output of `ssh-keyscan -t ed25519 <host>`, checked
+#                          against the instance's host key fingerprint
 name: deploy
 
 on:
@@ -17,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  checks: read
 
 concurrency:
   group: deploy-prod
@@ -26,38 +30,38 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-
       - name: Wait for CI on this commit
-        uses: lewagon/wait-on-check-action@v1.3.4
+        uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994 # v1.9.1
         with:
           ref: ${{ github.sha }}
-          check-name: test
+          check-regexp: '^(lint|test|audit)$'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
-          # Limit the wait so a missing check doesn't hang the job forever.
           allowed-conclusions: success
 
       - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          install -m 600 /dev/stdin ~/.ssh/id_ed25519 <<<"${{ secrets.LIGHTSAIL_SSH_KEY }}"
-          install -m 644 /dev/stdin ~/.ssh/known_hosts <<<"${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${SSH_KEY}" | install -m 600 /dev/stdin ~/.ssh/id_ed25519
+          printf '%s\n' "${KNOWN_HOSTS}" | install -m 644 /dev/stdin ~/.ssh/known_hosts
 
       - name: Deploy
         env:
           HOST: ${{ secrets.LIGHTSAIL_HOST }}
-          USER: ${{ secrets.LIGHTSAIL_USER }}
+          DEPLOY_USER: ${{ secrets.LIGHTSAIL_USER }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          # Pipe the script in via stdin so the remote box doesn't need an
-          # up-to-date checkout before it runs.
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "${USER}@${HOST}" \
-              "bash -s -- ${SHA}" < deploy/remote_deploy.sh
+          # The forced command on the box reads the SHA from
+          # SSH_ORIGINAL_COMMAND and ignores anything else.
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+              -i ~/.ssh/id_ed25519 "${DEPLOY_USER}@${HOST}" "${SHA}"
 
       - name: Post-deploy health check
         env:
@@ -73,5 +77,9 @@ jobs:
             fi
             sleep 3
           done
-          echo "health check failed; remote_deploy.sh should have rolled back"
+          echo "health check failed; iotagle-deploy should have rolled back"
           exit 1
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519

@@ -40,7 +40,7 @@ def _entity_encode_high(value: str) -> Markup:
             out_chars.append(f"&#{cp};")
         else:
             out_chars.append(ch)
-    return Markup("".join(out_chars))
+    return Markup("".join(out_chars))  # noqa: S704 — input passed through escape() above
 
 
 def create_app() -> Flask:

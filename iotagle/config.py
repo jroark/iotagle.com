@@ -15,13 +15,13 @@ from dataclasses import dataclass, field
 # fingerprint doesn't trigger DDG's anti-scraping. Update occasionally as
 # browsers move on.
 DEFAULT_USER_AGENTS: tuple[str, ...] = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:124.0) " "Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:124.0) Gecko/20100101 Firefox/124.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) " "Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
 )
 
 # Identifies our reader when fetching pages to transcode. Distinct from the UA
@@ -79,10 +79,15 @@ class Config:
         default_factory=lambda: _env_int("IOTAGLE_IMAGE_MAX_BYTES", 5_000_000),
     )
 
-    # Per-request HTTP timeouts (seconds). Sum must stay under gunicorn's
-    # worker timeout (25 s in deploy/gunicorn.conf.py).
+    # Per-request HTTP timeouts (seconds). Worst case for one fetch is
+    # total_timeout + read_timeout (a read that starts just before the
+    # deadline), which must stay under gunicorn's worker timeout (25 s in
+    # deploy/gunicorn.conf.py).
     connect_timeout: float = 5.0
     read_timeout: float = 8.0
+    # Wall-clock cap on one safe_get() call: every redirect hop plus body
+    # streaming. read_timeout only bounds the gap between chunks.
+    total_timeout: float = 12.0
 
     # Max redirects to follow. Each one re-runs the SSRF guard.
     max_redirects: int = 3
