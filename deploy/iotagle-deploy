@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# iotagle deploy entry point. Installed root-owned at
+# /usr/local/sbin/iotagle-deploy by deploy/bootstrap.sh, and run as the
+# ``deploy`` user in one of two ways:
+#
+#   - by CI, as the SSH forced command on deploy's only key:
+#         ssh deploy@iotagle.com <40-hex-sha>
+#     sshd puts the client's requested command in $SSH_ORIGINAL_COMMAND; the
+#     key's ``command=`` option guarantees this script runs instead of it.
+#   - by an admin on the box:
+#         sudo -u deploy /usr/local/sbin/iotagle-deploy <40-hex-sha>
+#
+# Because this file lives outside the repo checkout, changing deploy logic
+# requires an admin to re-run bootstrap.sh. CI can't change it.
+#
+# Behavior:
+#  - Accepts only a full 40-hex commit SHA that is already on origin/main.
+#    A stolen deploy key can therefore only move the box between commits
+#    that were pushed to main, not ship arbitrary code.
+#  - Detached-HEAD checkout by SHA, so the working tree is a
+#    content-addressed cache rather than a branch with drift.
+#  - Hash-checked, wheel-only pip install (no install-time code from sdists).
+#  - On any failure (service unhealthy or /healthz not "ok") it reverts to
+#    the previous SHA, reinstalls deps, restarts, and exits 1.
+set -euo pipefail
+umask 022
+
+APP=/opt/iotagle/app
+VENV=/opt/iotagle/venv
+BRANCH=main
+
+SHA="${SSH_ORIGINAL_COMMAND:-${1:-}}"
+if [[ ! "${SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "usage: ssh deploy@<host> <40-hex commit sha>" >&2
+    exit 2
+fi
+
+if [[ "$(id -un)" != "deploy" ]]; then
+    echo "must run as the deploy user" >&2
+    exit 2
+fi
+
+# Serialize deploys. GitHub's concurrency group already does this for CI;
+# this also covers a manual deploy racing a CI one.
+exec 9>/run/lock/iotagle-deploy.lock
+if ! flock -n 9; then
+    echo "another deploy is in progress" >&2
+    exit 75
+fi
+
+pip_sync() {
+    local req="${APP}/requirements.txt"
+    if grep -q -- '--hash=sha256:' "${req}"; then
+        "${VENV}/bin/pip" install --quiet --disable-pip-version-check \
+            --require-hashes --only-binary=:all: -r "${req}"
+    else
+        # Only reachable when rolling back to a commit from before the
+        # hashed lock files existed (still constrained to origin/main).
+        echo ">> WARNING: ${req} has no hashes (legacy commit); installing unverified" >&2
+        "${VENV}/bin/pip" install --quiet --disable-pip-version-check -r "${req}"
+    fi
+}
+
+restart_and_probe() {
+    sudo /usr/bin/systemctl restart iotagle.service
+    for _ in $(seq 1 15); do
+        if sudo /usr/bin/systemctl is-active --quiet iotagle.service \
+           && curl -fsS --max-time 3 http://127.0.0.1/healthz | grep -q '^ok$'; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+PREV_SHA="$(git -C "${APP}" rev-parse HEAD)"
+
+echo ">> fetching origin/${BRANCH}"
+git -C "${APP}" fetch --quiet origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
+
+if ! git -C "${APP}" merge-base --is-ancestor "${SHA}" "origin/${BRANCH}" 2>/dev/null; then
+    echo "refusing: ${SHA} is not on origin/${BRANCH}" >&2
+    exit 3
+fi
+
+echo ">> checking out ${SHA} (was ${PREV_SHA})"
+git -C "${APP}" checkout --quiet --detach "${SHA}"
+
+echo ">> syncing deps"
+if pip_sync && restart_and_probe; then
+    echo ">> deployed ${SHA}"
+    exit 0
+fi
+
+echo ">> deploy failed; rolling back to ${PREV_SHA}"
+git -C "${APP}" checkout --quiet --detach "${PREV_SHA}"
+if pip_sync && restart_and_probe; then
+    echo ">> rolled back to ${PREV_SHA}"
+else
+    echo ">> ROLLBACK ALSO FAILED — service may be down, manual fix required"
+fi
+exit 1
