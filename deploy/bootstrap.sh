@@ -5,7 +5,14 @@
 # already-provisioned box is safe; every step is guarded against repeat
 # application.
 #
-#     sudo ./deploy/bootstrap.sh [--deploy-pubkey /path/to/iotagle_deploy.pub]
+#     sudo ./deploy/bootstrap.sh [--deploy-pubkey FILE] [--ref COMMIT]
+#
+#   --deploy-pubkey FILE  install FILE (one ssh-ed25519 public key) as the
+#                         deploy user's only key, pinned to the deploy wrapper
+#   --ref COMMIT          check out COMMIT (any fetchable ref or SHA) before
+#                         installing. For building a replacement box from an
+#                         unmerged branch; normal deploys go through
+#                         iotagle-deploy, which only accepts origin/main.
 #
 # Accounts:
 #   ubuntu  admin. Full sudo, your personal key only. Never used by CI.
@@ -21,9 +28,11 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 DEPLOY_PUBKEY=""
+REF=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --deploy-pubkey) DEPLOY_PUBKEY="${2:?--deploy-pubkey needs a path}"; shift 2 ;;
+        --ref) REF="${2:?--ref needs a commit}"; shift 2 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -69,6 +78,10 @@ if [[ ! -d "${APP_DIR}/.git" ]]; then
 fi
 chown -R "${DEPLOY_USER}:${SERVICE_USER}" "${APP_DIR}"
 chmod 2751 "${APP_DIR}"
+if [[ -n "${REF}" ]]; then
+    sudo -u "${DEPLOY_USER}" git -C "${APP_DIR}" fetch --quiet origin "${REF}"
+    sudo -u "${DEPLOY_USER}" git -C "${APP_DIR}" checkout --quiet --detach FETCH_HEAD
+fi
 # Lets the admin run read-only git commands in the deploy-owned checkout.
 if ! git config --system --get-all safe.directory 2>/dev/null | grep -qx "${APP_DIR}"; then
     git config --system --add safe.directory "${APP_DIR}"
