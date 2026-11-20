@@ -61,7 +61,20 @@ Dependabot opens weekly PRs against the `.in` files and regenerates the locks.
 
 ## Deployment
 
-Deploys to a single AWS Lightsail Ubuntu VM via GitHub Actions on push to `main`. See [deploy/](deploy/) for nginx, systemd, gunicorn, and bootstrap configuration. See [deploy/ROLLBACK.md](deploy/ROLLBACK.md) for rollback steps.
+Deploys to a single AWS Lightsail Ubuntu VM via GitHub Actions on push to `main`, once `lint`, `test` and `audit` pass. See [deploy/](deploy/) for nginx, systemd, gunicorn, and bootstrap configuration, and [deploy/ROLLBACK.md](deploy/ROLLBACK.md) for rollback steps.
+
+| Account | Purpose |
+|---------|---------|
+| `ubuntu` | Admin. Full sudo; personal SSH key only. Never used by CI. |
+| `deploy` | CI deploys. Owns `/opt/iotagle/{app,venv}`. Its only SSH key is pinned by a forced command to `/usr/local/sbin/iotagle-deploy` ([source](deploy/iotagle-deploy)), which deploys only SHAs already on `origin/main`. Sudo is limited to restarting/probing `iotagle.service`. |
+| `iotagle` | Runs gunicorn inside a strict systemd sandbox. Read-only code; writes only `/var/lib/iotagle`. |
+
+`deploy/bootstrap.sh` is idempotent and provisions everything (packages, users, sshd, ufw, fail2ban, unattended security upgrades with 09:00 UTC auto-reboot, nginx, systemd). Changes to `deploy/iotagle-deploy`, nginx or the systemd unit reach the box only when an admin re-runs it:
+
+```bash
+ssh ubuntu@iotagle.com
+cd /opt/iotagle/app && sudo ./deploy/bootstrap.sh            # add --deploy-pubkey FILE to rotate the CI key
+```
 
 ## Design constraints
 
