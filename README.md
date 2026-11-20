@@ -24,7 +24,7 @@ A FrogFind-style search engine and reading proxy for vintage low-power computers
 ## Local development
 
 ```bash
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install --require-hashes -r requirements-dev.txt
 gunicorn -c deploy/gunicorn.conf.py wsgi:app -b 127.0.0.1:8000

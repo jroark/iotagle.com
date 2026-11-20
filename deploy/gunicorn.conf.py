@@ -1,6 +1,6 @@
 """Gunicorn configuration for iotagle.
 
-Tuned for a 512 MB Lightsail instance with one CPU. Two processes leave
+Tuned for a 1 GB Lightsail micro instance (2 vCPU burstable). Two processes leave
 headroom for nginx, journald, and the kernel.
 
 Threads: almost all request time is spent waiting on upstream sites (up to

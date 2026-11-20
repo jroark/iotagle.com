@@ -73,7 +73,8 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 IPAddressAllow=localhost
 IPAddressDeny=link-local multicast 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 172.16.0.0/12 192.168.0.0/16 fc00::/7
 
-# Hard memory cap. On a 512 MB box this leaves room for nginx + journald.
+# Hard memory cap. On the 1 GB micro bundle this leaves ample room for nginx,
+# journald and unattended-upgrades; the app normally sits around 100 MB.
 MemoryMax=350M
 
 [Install]

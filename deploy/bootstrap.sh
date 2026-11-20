@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PYTHON=python3.11
+PYTHON=python3.12
 APP_DIR=/opt/iotagle/app
 VENV_DIR=/opt/iotagle/venv
 SERVICE_USER=iotagle
